@@ -19,32 +19,32 @@ def dashboard():
         return auth_check
     
     conn = get_db()
-    cursor = conn.cursor()
+    irs = conn.irs()
     
     # Get company's internships
-    cursor.execute("SELECT * FROM internships WHERE company_id=?", (session['user_id'],))
-    internships = cursor.fetchall()
+    irs.execute("SELECT * FROM internships WHERE company_id=?", (session['user_id'],))
+    internships = irs.fetchall()
     
     # Get applications for each internship
     applications = {}
     for internship in internships:
-        cursor.execute('''
+        irs.execute('''
             SELECT applications.*, users.name as student_name 
             FROM applications 
             JOIN users ON applications.student_id = users.id 
             WHERE internship_id=?
         ''', (internship['id'],))
-        applications[internship['id']] = cursor.fetchall()
+        applications[internship['id']] = irs.fetchall()
     
     # Get messages
-    cursor.execute('''
+    irs.execute('''
         SELECT messages.content, messages.sent_at, users.name as receiver_name, internships.title
         FROM messages
         JOIN users ON messages.receiver_id = users.id
         JOIN internships ON messages.internship_id = internships.id
         WHERE messages.sender_id=?
     ''', (session['user_id'],))
-    messages = cursor.fetchall()
+    messages = irs.fetchall()
     
     return render_template('company_dashboard.html', internships=internships, 
                            applications=applications, messages=messages)
@@ -67,8 +67,8 @@ def post_internship():
         
         try:
             conn = get_db()
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO internships (company_id, title, description, required_skills) VALUES (?, ?, ?, ?)",
+            irs = conn.irs()
+            irs.execute("INSERT INTO internships (company_id, title, description, required_skills) VALUES (?, ?, ?, ?)",
                            (session['user_id'], title, description, required_skills))
             conn.commit()
             flash('Internship posted successfully!', 'success')
@@ -93,22 +93,22 @@ def update_application(application_id):
         return jsonify({'success': False, 'message': 'Invalid status'}), 400
     
     conn = get_db()
-    cursor = conn.cursor()
+    irs = conn.irs()
     
     # Verify the application belongs to the company
-    cursor.execute('''
+    irs.execute('''
         SELECT internships.company_id 
         FROM applications 
         JOIN internships ON applications.internship_id = internships.id 
         WHERE applications.id=?
     ''', (application_id,))
-    app_data = cursor.fetchone()
+    app_data = irs.fetchone()
     
     if not app_data or app_data['company_id'] != session['user_id']:
         return jsonify({'success': False, 'message': 'Unauthorized'}), 401
     
     try:
-        cursor.execute("UPDATE applications SET status=? WHERE id=?", (status, application_id))
+        irs.execute("UPDATE applications SET status=? WHERE id=?", (status, application_id))
         conn.commit()
         return jsonify({'success': True})
     except Exception as e:
@@ -122,19 +122,19 @@ def view_student_cv(student_id):
         return auth_check
     
     conn = get_db()
-    cursor = conn.cursor()
+    irs = conn.irs()
     
     # Get student's CV
-    cursor.execute("SELECT * FROM cvs WHERE user_id=?", (student_id,))
-    cv = cursor.fetchone()
+    irs.execute("SELECT * FROM cvs WHERE user_id=?", (student_id,))
+    cv = irs.fetchone()
     
     if not cv:
         flash('Student has not created a CV yet', 'warning')
         return redirect(url_for('company.dashboard'))
     
     # Get student's basic info
-    cursor.execute("SELECT name, email FROM users WHERE id=?", (student_id,))
-    student = cursor.fetchone()
+    irs.execute("SELECT name, email FROM users WHERE id=?", (student_id,))
+    student = irs.fetchone()
     
     return render_template('cv_view.html', cv=cv, student=student, company_view=True)
 
@@ -146,11 +146,11 @@ def delete_internship(internship_id):
         return jsonify({'success': False, 'message': 'Unauthorized'}), 401
     
     conn = get_db()
-    cursor = conn.cursor()
+    irs = conn.irs()
     
     # Verify the internship belongs to the company
-    cursor.execute("SELECT company_id, title FROM internships WHERE id=?", (internship_id,))
-    internship = cursor.fetchone()
+    irs.execute("SELECT company_id, title FROM internships WHERE id=?", (internship_id,))
+    internship = irs.fetchone()
     
     if not internship or internship['company_id'] != session['user_id']:
         return jsonify({'success': False, 'message': 'Unauthorized'}), 401
@@ -159,13 +159,13 @@ def delete_internship(internship_id):
         # Delete related data in the correct order (due to foreign key constraints)
         
         # 1. Delete messages related to this internship
-        cursor.execute("DELETE FROM messages WHERE internship_id=?", (internship_id,))
+        irs.execute("DELETE FROM messages WHERE internship_id=?", (internship_id,))
         
         # 2. Delete applications for this internship
-        cursor.execute("DELETE FROM applications WHERE internship_id=?", (internship_id,))
+        irs.execute("DELETE FROM applications WHERE internship_id=?", (internship_id,))
         
         # 3. Delete the internship itself
-        cursor.execute("DELETE FROM internships WHERE id=?", (internship_id,))
+        irs.execute("DELETE FROM internships WHERE id=?", (internship_id,))
         
         conn.commit()
         
